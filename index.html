@@ -4,13 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="הוצאות" />
   <meta name="theme-color" content="#064e3b" />
-  <title>ההוצאות שלנו — רן ושרון</title>
+  <title>ההוצאות שלנו</title>
   
   <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/188/188333.png">
-  <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/188/188333.png">
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -19,9 +17,9 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
-    html, body { background: #fafaf9; overscroll-behavior-y: none; }
-    body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+    html, body { background: #fafaf9; overscroll-behavior-y: none; font-family: system-ui, -apple-system, sans-serif; }
     input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .btn-active { transform: scale(0.98); }
   </style>
 </head>
 <body>
@@ -30,17 +28,20 @@
   <script type="text/babel">
     const { useState, useEffect } = React;
 
+    // הגדרות סופבייס
     const SUPABASE_URL = "https://xdnzmlihuvjpqzullkeg.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_1mh3rb8mq1zYjB4kVh4WYg_GwocC5Y5";
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-    const Trash2 = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>;
-    const Edit3 = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>;
-    const ChevronRight = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>;
-    const ChevronLeft = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>;
+    
+    // יצירת קליינט בצורה בטוחה
+    let supabase;
+    try {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    } catch (e) {
+      console.error("Supabase error", e);
+    }
 
     const HEBREW_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-    const HEBREW_DAYS_SHORT = ["א'","ב'","ג'","ד'","ה'","ו'","ש'"];
+    const HEBREW_DAYS = ["א'","ב'","ג'","ד'","ה'","ו'","ש'"];
 
     function App() {
       const [currentUser, setCurrentUser] = useState("ran");
@@ -52,20 +53,22 @@
       const [editingId, setEditingId] = useState(null);
 
       useEffect(() => {
-        fetchExpenses();
-        const channel = supabase.channel('realtime-expenses')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, fetchExpenses)
-          .subscribe();
-        return () => supabase.removeChannel(channel);
+        if (supabase) {
+          fetchExpenses();
+          const channel = supabase.channel('any')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, fetchExpenses)
+            .subscribe();
+          return () => supabase.removeChannel(channel);
+        }
       }, []);
 
       async function fetchExpenses() {
-        const { data } = await supabase.from('expenses').select('*').order('date', { ascending: false });
+        const { data, error } = await supabase.from('expenses').select('*').order('date', { ascending: false });
         if (data) setExpenses(data);
       }
 
       async function handleSave() {
-        if (!amount) return;
+        if (!amount || !supabase) return;
         const payload = { 
           amount: parseFloat(amount), 
           description: description || "ללא פירוט", 
@@ -89,14 +92,6 @@
         }
       }
 
-      function startEdit(exp) {
-        setEditingId(exp.id);
-        setAmount(exp.amount);
-        setDescription(exp.description);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-
-      // Calendar Logic
       const year = calendarMonth.getFullYear();
       const month = calendarMonth.getMonth();
       const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -107,61 +102,20 @@
       const dailyTotal = filteredExpenses.reduce((s, e) => s + Number(e.amount), 0);
 
       return (
-        <div className="max-w-md mx-auto p-4 pb-12">
+        <div className="max-w-md mx-auto p-4 pb-12" dir="rtl">
           <div className="flex justify-between items-center mb-6 pt-4">
             <h1 className="text-2xl font-bold text-emerald-900">הוצאות רן ושרון</h1>
             <button onClick={() => setCurrentUser(currentUser === "ran" ? "sharon" : "ran")} 
-                    className={`px-4 py-2 rounded-full shadow-sm border text-sm font-bold transition-all ${currentUser === 'ran' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                    className="bg-white px-4 py-2 rounded-full shadow-sm border text-sm font-bold">
               {currentUser === "ran" ? "רן 🧔‍♂️" : "שרון 👩‍🦰"}
             </button>
           </div>
 
           <div className="bg-emerald-800 text-white p-6 rounded-[2rem] shadow-lg mb-6 text-center">
-            <p className="text-emerald-200 text-xs mb-1">סה"כ ליום שנבחר</p>
+            <p className="text-emerald-200 text-xs mb-1">סה"כ ל-{selectedDate}</p>
             <h2 className="text-4xl font-bold">₪{dailyTotal}</h2>
           </div>
 
           <div className="bg-white p-5 rounded-2xl shadow-sm mb-6 border border-stone-100">
-            <input type="number" placeholder="סכום" value={amount} onChange={e => setAmount(e.target.value)} className="w-full mb-3 p-4 bg-stone-50 rounded-xl text-xl font-bold text-center" />
-            <input type="text" placeholder="פירוט (על מה?)" value={description} onChange={e => setDescription(e.target.value)} className="w-full mb-4 p-3 bg-stone-50 rounded-xl text-center" />
-            <button onClick={handleSave} className={`w-full p-4 rounded-xl font-bold text-white transition-all ${editingId ? 'bg-amber-500' : 'bg-emerald-600'}`}>
-              {editingId ? "עדכן הוצאה" : "שמור הוצאה"}
-            </button>
-            {editingId && <button onClick={() => {setEditingId(null); setAmount(""); setDescription("");}} className="w-full text-stone-400 text-sm mt-3">ביטול עריכה</button>}
-          </div>
-
-          {/* Calendar View */}
-          <div className="bg-white p-4 rounded-2xl shadow-sm mb-6 border border-stone-100">
-            <div className="flex justify-between items-center mb-4 px-2">
-              <button onClick={() => setCalendarMonth(new Date(year, month - 1))}><ChevronRight /></button>
-              <div className="font-bold text-emerald-900">{HEBREW_MONTHS[month]} {year}</div>
-              <button onClick={() => setCalendarMonth(new Date(year, month + 1))}><ChevronLeft /></button>
-            </div>
-            <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-stone-400 mb-2">
-              {HEBREW_DAYS_SHORT.map(d => <div key={d}>{d}</div>)}
-            </div>
-            <div className="grid grid-cols-7 gap-1">
-              {cells.map((day, i) => {
-                if (!day) return <div key={i} />;
-                const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-                const isSelected = selectedDate === dateStr;
-                const hasExp = expenses.some(e => e.date === dateStr);
-                return (
-                  <button key={i} onClick={() => setSelectedDate(dateStr)} 
-                    className={`aspect-square rounded-lg text-sm font-bold transition-all relative ${isSelected ? 'bg-emerald-700 text-white' : 'text-stone-600 hover:bg-stone-50'}`}>
-                    {day}
-                    {hasExp && <div className={`absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-emerald-400'}`} />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <h3 className="text-sm font-bold text-stone-400 px-2">הוצאות ליום זה:</h3>
-            {filteredExpenses.length === 0 ? <p className="text-center py-8 text-stone-300 text-sm italic">אין הוצאות בתאריך זה</p> : 
-              filteredExpenses.map(exp => (
-                <div key={exp.id} className="bg-white p-4 rounded-xl shadow-sm border border-stone-50 flex justify-between items-center animate-in fade-in">
-                  <div>
-                    <div className="font-bold text-emerald-950 text-lg">₪{exp.amount}</div>
-                    <div className="text-xs text-stone-500">{exp.description} | {exp.user_name === 'ran' ? 'רן' :
+            <input type="number" placeholder="סכום" value={amount} onChange={e => setAmount(e.target.value)} className="w-full mb-3 p-4 bg-stone-50 rounded-xl text-xl font-bold text-center outline-none focus:ring-2 focus:ring-emerald-500" />
+            <input type="text" placeholder="על מה?" value={description} onChange={e => setDescription(e.target.value)}
