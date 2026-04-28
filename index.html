@@ -3,23 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-title" content="הוצאות" />
-  <meta name="theme-color" content="#064e3b" />
-  <title>ההוצאות שלנו</title>
+  <title>הוצאות רן ושרון</title>
   
-  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/188/188333.png">
-
   <script src="https://cdn.tailwindcss.com"></script>
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
-    html, body { background: #fafaf9; overscroll-behavior-y: none; font-family: system-ui, -apple-system, sans-serif; }
+    body { background: #fafaf9; font-family: system-ui, -apple-system, sans-serif; margin: 0; }
     input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-    .btn-active { transform: scale(0.98); }
   </style>
 </head>
 <body>
@@ -28,17 +22,10 @@
   <script type="text/babel">
     const { useState, useEffect } = React;
 
-    // הגדרות סופבייס
+    // הגדרות
     const SUPABASE_URL = "https://xdnzmlihuvjpqzullkeg.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_1mh3rb8mq1zYjB4kVh4WYg_GwocC5Y5";
-    
-    // יצירת קליינט בצורה בטוחה
-    let supabase;
-    try {
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    } catch (e) {
-      console.error("Supabase error", e);
-    }
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const HEBREW_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
     const HEBREW_DAYS = ["א'","ב'","ג'","ד'","ה'","ו'","ש'"];
@@ -52,23 +39,19 @@
       const [calendarMonth, setCalendarMonth] = useState(new Date());
       const [editingId, setEditingId] = useState(null);
 
+      const fetchExpenses = async () => {
+        const { data } = await supabase.from('expenses').select('*').order('date', { ascending: false });
+        if (data) setExpenses(data);
+      };
+
       useEffect(() => {
-        if (supabase) {
-          fetchExpenses();
-          const channel = supabase.channel('any')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, fetchExpenses)
-            .subscribe();
-          return () => supabase.removeChannel(channel);
-        }
+        fetchExpenses();
+        const channel = supabase.channel('changes').on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, fetchExpenses).subscribe();
+        return () => supabase.removeChannel(channel);
       }, []);
 
-      async function fetchExpenses() {
-        const { data, error } = await supabase.from('expenses').select('*').order('date', { ascending: false });
-        if (data) setExpenses(data);
-      }
-
-      async function handleSave() {
-        if (!amount || !supabase) return;
+      const handleSave = async () => {
+        if (!amount) return;
         const payload = { 
           amount: parseFloat(amount), 
           description: description || "ללא פירוט", 
@@ -84,13 +67,11 @@
           await supabase.from('expenses').insert([payload]);
         }
         setAmount(""); setDescription("");
-      }
+      };
 
-      async function deleteExpense(id) {
-        if (confirm("למחוק את ההוצאה?")) {
-          await supabase.from('expenses').delete().eq('id', id);
-        }
-      }
+      const deleteExp = async (id) => {
+        if (confirm("למחוק?")) await supabase.from('expenses').delete().eq('id', id);
+      };
 
       const year = calendarMonth.getFullYear();
       const month = calendarMonth.getMonth();
@@ -98,24 +79,73 @@
       const firstDay = new Date(year, month, 1).getDay();
       const cells = [...Array(firstDay).fill(null), ...([...Array(daysInMonth).keys()].map(i => i + 1))];
 
-      const filteredExpenses = expenses.filter(e => e.date === selectedDate);
-      const dailyTotal = filteredExpenses.reduce((s, e) => s + Number(e.amount), 0);
+      const filtered = expenses.filter(e => e.date === selectedDate);
+      const total = filtered.reduce((s, e) => s + Number(e.amount), 0);
 
       return (
-        <div className="max-w-md mx-auto p-4 pb-12" dir="rtl">
+        <div className="max-w-md mx-auto p-4" dir="rtl">
           <div className="flex justify-between items-center mb-6 pt-4">
-            <h1 className="text-2xl font-bold text-emerald-900">הוצאות רן ושרון</h1>
-            <button onClick={() => setCurrentUser(currentUser === "ran" ? "sharon" : "ran")} 
-                    className="bg-white px-4 py-2 rounded-full shadow-sm border text-sm font-bold">
+            <h1 className="text-xl font-bold text-emerald-900">הוצאות רן ושרון</h1>
+            <button onClick={() => setCurrentUser(currentUser === "ran" ? "sharon" : "ran")} className="bg-white px-3 py-1 rounded-full border text-sm font-bold">
               {currentUser === "ran" ? "רן 🧔‍♂️" : "שרון 👩‍🦰"}
             </button>
           </div>
 
-          <div className="bg-emerald-800 text-white p-6 rounded-[2rem] shadow-lg mb-6 text-center">
-            <p className="text-emerald-200 text-xs mb-1">סה"כ ל-{selectedDate}</p>
-            <h2 className="text-4xl font-bold">₪{dailyTotal}</h2>
+          <div className="bg-emerald-800 text-white p-6 rounded-2xl mb-6 text-center">
+            <div className="text-xs opacity-80">סה"כ ל-{selectedDate}</div>
+            <div className="text-3xl font-bold">₪{total}</div>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl shadow-sm mb-6 border border-stone-100">
-            <input type="number" placeholder="סכום" value={amount} onChange={e => setAmount(e.target.value)} className="w-full mb-3 p-4 bg-stone-50 rounded-xl text-xl font-bold text-center outline-none focus:ring-2 focus:ring-emerald-500" />
-            <input type="text" placeholder="על מה?" value={description} onChange={e => setDescription(e.target.value)}
+          <div className="bg-white p-4 rounded-xl shadow-sm mb-6 border">
+            <input type="number" placeholder="סכום" value={amount} onChange={e => setAmount(e.target.value)} className="w-full mb-2 p-3 bg-stone-50 rounded-lg text-center font-bold" />
+            <input type="text" placeholder="פירוט" value={description} onChange={e => setDescription(e.target.value)} className="w-full mb-3 p-3 bg-stone-50 rounded-lg text-center" />
+            <button onClick={handleSave} className={`w-full p-3 rounded-lg font-bold text-white ${editingId ? 'bg-orange-500' : 'bg-emerald-600'}`}>
+              {editingId ? "עדכן" : "שמור"}
+            </button>
+            {editingId && <button onClick={() => {setEditingId(null); setAmount(""); setDescription("");}} className="w-full text-xs text-stone-400 mt-2 text-center underline">ביטול עריכה</button>}
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border mb-6 text-center">
+            <div className="flex justify-between items-center mb-4">
+              <button onClick={() => setCalendarMonth(new Date(year, month - 1))}>▶</button>
+              <div className="font-bold">{HEBREW_MONTHS[month]} {year}</div>
+              <button onClick={() => setCalendarMonth(new Date(year, month + 1))}>◀</button>
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {HEBREW_DAYS.map(d => <div key={d} className="text-[10px] text-stone-400 font-bold">{d}</div>)}
+              {cells.map((day, i) => {
+                if (!day) return <div key={i} />;
+                const dStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                const isS = selectedDate === dStr;
+                return (
+                  <button key={i} onClick={() => setSelectedDate(dStr)} className={`aspect-square rounded flex items-center justify-center text-sm ${isS ? 'bg-emerald-700 text-white font-bold' : 'text-stone-700'}`}>
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {filtered.map(exp => (
+              <div key={exp.id} className="bg-white p-3 rounded-lg border flex justify-between items-center">
+                <div>
+                  <div className="font-bold text-emerald-950">₪{exp.amount}</div>
+                  <div className="text-[10px] text-stone-500">{exp.description} | {exp.user_name === 'ran' ? 'רן' : 'שרון'}</div>
+                </div>
+                <div className="flex gap-3 text-[11px] font-bold">
+                  <button onClick={() => {setEditingId(exp.id); setAmount(exp.amount); setDescription(exp.description); window.scrollTo(0,0);}} className="text-emerald-600">ערוך</button>
+                  <button onClick={() => deleteExp(exp.id)} className="text-red-400">מחק</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
