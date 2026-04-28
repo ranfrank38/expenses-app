@@ -22,7 +22,6 @@
   <script type="text/babel">
     const { useState, useEffect } = React;
 
-    // הגדרות
     const SUPABASE_URL = "https://xdnzmlihuvjpqzullkeg.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_1mh3rb8mq1zYjB4kVh4WYg_GwocC5Y5";
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -81,6 +80,10 @@
 
       const filtered = expenses.filter(e => e.date === selectedDate);
       const total = filtered.reduce((s, e) => s + Number(e.amount), 0);
+      
+      // פירוט לפי משתמש ליום שנבחר
+      const ranDailyTotal = filtered.filter(e => e.user_name === 'ran').reduce((s, e) => s + Number(e.amount), 0);
+      const sharonDailyTotal = filtered.filter(e => e.user_name === 'sharon').reduce((s, e) => s + Number(e.amount), 0);
 
       return (
         <div className="max-w-md mx-auto p-4" dir="rtl">
@@ -91,54 +94,65 @@
             </button>
           </div>
 
-          <div className="bg-emerald-800 text-white p-6 rounded-2xl mb-6 text-center">
-            <div className="text-xs opacity-80">סה"כ ל-{selectedDate}</div>
-            <div className="text-3xl font-bold">₪{total}</div>
+          <div className="bg-emerald-800 text-white p-6 rounded-2xl mb-6 text-center shadow-lg">
+            <div className="text-xs opacity-70 mb-1">סה"כ ל-{selectedDate}</div>
+            <div className="text-4xl font-bold mb-3">₪{total}</div>
+            <div className="flex justify-center gap-4 text-xs font-medium border-t border-emerald-700/50 pt-3">
+              <span>רן: ₪{ranDailyTotal}</span>
+              <span className="opacity-30">|</span>
+              <span>שרון: ₪{sharonDailyTotal}</span>
+            </div>
           </div>
 
           <div className="bg-white p-4 rounded-xl shadow-sm mb-6 border">
-            <input type="number" placeholder="סכום" value={amount} onChange={e => setAmount(e.target.value)} className="w-full mb-2 p-3 bg-stone-50 rounded-lg text-center font-bold" />
-            <input type="text" placeholder="פירוט" value={description} onChange={e => setDescription(e.target.value)} className="w-full mb-3 p-3 bg-stone-50 rounded-lg text-center" />
-            <button onClick={handleSave} className={`w-full p-3 rounded-lg font-bold text-white ${editingId ? 'bg-orange-500' : 'bg-emerald-600'}`}>
-              {editingId ? "עדכן" : "שמור"}
+            <input type="number" placeholder="סכום" value={amount} onChange={e => setAmount(e.target.value)} className="w-full mb-2 p-3 bg-stone-50 rounded-lg text-center font-bold text-lg" />
+            <input type="text" placeholder="פירוט" value={description} onChange={e => setDescription(e.target.value)} className="w-full mb-3 p-3 bg-stone-50 rounded-lg text-center outline-none" />
+            <button onClick={handleSave} className={`w-full p-3 rounded-lg font-bold text-white transition-colors ${editingId ? 'bg-orange-500' : 'bg-emerald-600'}`}>
+              {editingId ? "עדכן הוצאה" : "שמור הוצאה"}
             </button>
             {editingId && <button onClick={() => {setEditingId(null); setAmount(""); setDescription("");}} className="w-full text-xs text-stone-400 mt-2 text-center underline">ביטול עריכה</button>}
           </div>
 
-          <div className="bg-white p-4 rounded-xl border mb-6 text-center">
+          <div className="bg-white p-4 rounded-xl border mb-6 text-center shadow-sm">
             <div className="flex justify-between items-center mb-4">
-              <button onClick={() => setCalendarMonth(new Date(year, month - 1))}>▶</button>
-              <div className="font-bold">{HEBREW_MONTHS[month]} {year}</div>
-              <button onClick={() => setCalendarMonth(new Date(year, month + 1))}>◀</button>
+              <button className="p-2" onClick={() => setCalendarMonth(new Date(year, month - 1))}>▶</button>
+              <div className="font-bold text-emerald-900">{HEBREW_MONTHS[month]} {year}</div>
+              <button className="p-2" onClick={() => setCalendarMonth(new Date(year, month + 1))}>◀</button>
             </div>
             <div className="grid grid-cols-7 gap-1">
               {HEBREW_DAYS.map(d => <div key={d} className="text-[10px] text-stone-400 font-bold">{d}</div>)}
               {cells.map((day, i) => {
                 if (!day) return <div key={i} />;
                 const dStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-                const isS = selectedDate === dStr;
+                const isSelected = selectedDate === dStr;
+                const hasExp = expenses.some(e => e.date === dStr);
                 return (
-                  <button key={i} onClick={() => setSelectedDate(dStr)} className={`aspect-square rounded flex items-center justify-center text-sm ${isS ? 'bg-emerald-700 text-white font-bold' : 'text-stone-700'}`}>
+                  <button key={i} onClick={() => setSelectedDate(dStr)} 
+                    className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm relative ${isSelected ? 'bg-emerald-700 text-white font-bold' : 'text-stone-700 hover:bg-emerald-50'}`}>
                     {day}
+                    {hasExp && <div className={`w-1 h-1 rounded-full mt-0.5 ${isSelected ? 'bg-white' : 'bg-emerald-400'}`}></div>}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          <div className="space-y-2">
-            {filtered.map(exp => (
-              <div key={exp.id} className="bg-white p-3 rounded-lg border flex justify-between items-center">
-                <div>
-                  <div className="font-bold text-emerald-950">₪{exp.amount}</div>
-                  <div className="text-[10px] text-stone-500">{exp.description} | {exp.user_name === 'ran' ? 'רן' : 'שרון'}</div>
+          <div className="space-y-2 mb-8">
+            <div className="text-xs font-bold text-stone-400 px-1 mb-2">פירוט עסקאות:</div>
+            {filtered.length === 0 ? <div className="text-center py-4 text-stone-400 text-sm italic">אין הוצאות ביום זה</div> : 
+              filtered.map(exp => (
+                <div key={exp.id} className="bg-white p-3 rounded-lg border flex justify-between items-center shadow-sm">
+                  <div>
+                    <div className="font-bold text-emerald-950">₪{exp.amount}</div>
+                    <div className="text-[10px] text-stone-500">{exp.description} | {exp.user_name === 'ran' ? 'רן' : 'שרון'}</div>
+                  </div>
+                  <div className="flex gap-4 text-[11px] font-bold">
+                    <button onClick={() => {setEditingId(exp.id); setAmount(exp.amount); setDescription(exp.description); window.scrollTo(0,0);}} className="text-emerald-600">ערוך</button>
+                    <button onClick={() => deleteExp(exp.id)} className="text-red-400">מחק</button>
+                  </div>
                 </div>
-                <div className="flex gap-3 text-[11px] font-bold">
-                  <button onClick={() => {setEditingId(exp.id); setAmount(exp.amount); setDescription(exp.description); window.scrollTo(0,0);}} className="text-emerald-600">ערוך</button>
-                  <button onClick={() => deleteExp(exp.id)} className="text-red-400">מחק</button>
-                </div>
-              </div>
-            ))}
+              ))
+            }
           </div>
         </div>
       );
